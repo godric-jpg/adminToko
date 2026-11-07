@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Product extends Model
 {
+    use HasFactory;
+
     protected $primaryKey = 'product_id';
 
     protected $fillable = [
@@ -21,6 +24,19 @@ class Product extends Model
         'slug',
     ];
 
+    // Otomatis sertakan img_url saat dikirim ke React
+    protected $appends = ['img_url'];
+
+    public function getImgUrlAttribute()
+    {
+        if (!$this->img) {
+            return 'https://via.placeholder.com/150';
+        }
+        return str_starts_with($this->img, 'http')
+            ? $this->img
+            : asset('storage/' . $this->img);
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
@@ -30,6 +46,7 @@ class Product extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
     public function scopeFilter(Builder $query, array $f): Builder
     {
         return $query
@@ -43,6 +60,7 @@ class Product extends Model
             ->when(isset($f['in_stock']) && filter_var($f['in_stock'], FILTER_VALIDATE_BOOLEAN),
                 fn ($q) => $q->where('stock', '>', 0));
     }
+
     public function scopeSortBy(Builder $query, ?string $sort): Builder
     {
         $allowed = ['name', 'price', 'stock', 'created_at'];

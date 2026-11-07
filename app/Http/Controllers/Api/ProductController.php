@@ -31,9 +31,10 @@ class ProductController extends Controller
     {
         $data = $request->validated();
 
+        $userId = $request->user()?->id ?? 1;   
         $product = Product::create([
             ...collect($data)->except('img')->all(),
-            'user_id' => $request->user()->id,
+            'user_id' => $userId,
             'img' => $request->hasFile('img')
                 ? $request->file('img')->store('products', 'public')
                 : null,
@@ -53,12 +54,14 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, string $id)
     {
         $product = Product::findOrFail($id);
+        
+        // Catatan: Pastikan Policy Gate mengizinkan update
         Gate::authorize('update', $product);
 
         $data = collect($request->validated())->except('img')->all();
 
         if (isset($data['name']) && $data['name'] !== $product->name) {
-            $data['slug'] = $this->uniqueSlug($data['name'], $product->product_id);
+            $data['slug'] = $this->uniqueSlug($data['name'], $product->getKey());
         }
 
         if ($request->hasFile('img')) {
@@ -85,13 +88,17 @@ class ProductController extends Controller
 
         return response()->json(['message' => 'Product deleted successfully']);
     }
-    private function uniqueSlug(string $name, ?int $ignoreId = null): string
+
+    private function uniqueSlug(string $name, mixed $ignoreId = null): string
     {
         $base = Str::slug($name);
         $slug = $base;
         $i = 2;
+
+        $keyName = (new Product())->getKeyName();
+
         while (Product::where('slug', $slug)
-            ->when($ignoreId, fn ($q) => $q->where('product_id', '!=', $ignoreId))
+            ->when($ignoreId, fn ($q) => $q->where($keyName, '!=', $ignoreId))
             ->exists()) {
             $slug = "{$base}-{$i}";
             $i++;
